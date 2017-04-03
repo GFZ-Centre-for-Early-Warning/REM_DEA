@@ -13,7 +13,7 @@
 </head>
 <body style="background-color:#efefef;"> 
 	<iframe title="pannellum panorama viewer" 
-			width="50%" height="390" webkitAllowFullScreen mozallowfullscreen allowFullScreen 
+			width="50%" height="90" webkitAllowFullScreen mozallowfullscreen allowFullScreen 
 			style="border-style:none;" 
             src="{{ url_for('pannellum')}}"+"config=/static/config.json"
 			id="ifrm1">
@@ -25,9 +25,9 @@
 			id="ifrm2">
 	</iframe>
 	<iframe title="rrvs form" 
-			width="99%" height="390" 
+			width="99%" height="690" 
 			style="border-style:none; padding: 5px;" 
-			src="{{ url_for('rrvsform') }}"
+			src="{{ url_for('queryform') }}"
 			id="ifrm3">
 	</iframe>
 </body>

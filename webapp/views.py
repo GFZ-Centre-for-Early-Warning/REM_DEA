@@ -10,10 +10,11 @@ Description: The main views file setting up the flask application layout, defini
 '''
 import flask
 from webapp import app, db
-from models import ve_object, dic_attribute_value, pan_imgs,gps, User, task, tasks_users
-from forms import RrvsForm, RrvsForm_ar,LoginForm
+from models import survey,t_object, object_attribute, ve_object, dic_attribute_value, pan_imgs,gps, User, task, tasks_users
+from forms import QueryForm,RrvsForm, RrvsForm_ar,LoginForm
 from flask.ext.security import login_required, login_user, logout_user
 import geoalchemy2.functions as func
+from geoalchemy2 import WKTElement
 import json
 from geojson import Feature, FeatureCollection, dumps
 import time
@@ -82,7 +83,7 @@ def login():
             #flags for screened buildings
             flask.session['screened'] = [False]*len(flask.session['bdg_gids'])
             #language is set in babel locale in __init__.py
-            #get gid's as python dictionary
+            #get gid's of attribute values as defined in dic_attribute_value as python dictionary
             dic_attribute_val_query=dic_attribute_value.query.all()#.options(load_only("gid","attribute_value"))
             dic_attribute_val_py={}
             for attribute in dic_attribute_val_query:
@@ -124,11 +125,12 @@ def map():
     #get bdg_gids
     bdg_gids = flask.session['bdg_gids']
     #get FeatureCollection with corresponding building footprints
-    rows = ve_object.query.filter(ve_object.gid.in_(bdg_gids)).all()
+    rows = object_attribute.query.filter(db.and_(object_attribute.object_id.in_(bdg_gids),object_attribute.attribute_type_code=='RRVS_STATUS')).all()
     bdgs = []
     for row in rows:
-        geometry = json.loads(db.session.scalar(func.ST_AsGeoJSON(row.the_geom)))
-        feature = Feature(id=row.gid,geometry=geometry,properties={"gid":row.gid, "rrvs_status":row.rrvs_status})
+        geom = t_object.query.filter_by(gid=row.object_id).first().the_geom
+        geometry = json.loads(db.session.scalar(func.ST_AsGeoJSON(geom)))
+        feature = Feature(id=row.object_id,geometry=geometry,properties={"gid":row.object_id, "rrvs_status":row.attribute_value})
         bdgs.append(feature)
     bdgs_json = dumps(FeatureCollection(bdgs))
     #get img_gids
@@ -164,207 +166,259 @@ def update_rrvsform():
 	Note that for QuerySelectFields the gid of the attribute_value needs to be returned by the function.
 	"""
     # get building gid value for queries
-    t0=time.time()
     gid_val = flask.request.args.get('gid_val', 0, type=int)
-    print ('here')
-    print time.time()-t0
-    # query attribute_value for select fields
-    row = ve_object.query.filter_by(gid=gid_val).first()
-    print time.time()-t0
-    mat_type_val = row.mat_type
-    mat_tech_val = row.mat_tech
-    mat_prop_val = row.mat_prop
-    llrs_val = row.llrs
-    llrs_duct_val = row.llrs_duct
-    height_val = row.height
-    height2_val = row.height2
-    yr_built_val = row.yr_built
-    occupy_val = row.occupy
-    occupy_dt_val = row.occupy_dt
-    plan_shape_val = row.plan_shape
-    position_val = row.position
-    str_irreg_val = row.str_irreg
-    str_irreg_dt_val = row.str_irreg_dt
-    str_irreg_type_val = row.str_irreg_type
-    str_irreg_2_val = row.str_irreg_2
-    str_irreg_dt_2_val = row.str_irreg_dt_2
-    str_irreg_type_2_val = row.str_irreg_type_2
-    roof_shape_val = row.roof_shape
-    roof_covmat_val = row.roofcovmat
-    roof_sysmat_val = row.roofsysmat
-    roof_systype_val = row.roofsystyp
-    roof_conn_val = row.roof_conn
-    floor_mat_val = row.floor_mat
-    floor_type_val = row.floor_type
-    floor_conn_val = row.floor_conn
-    foundn_sys_val = row.foundn_sys
-    nonstrcexw_val = row.nonstrcexw
-    comment_val = row.comment
-    vuln_val = row.vuln
-    #mat_type_val = ve_object.query.filter_by(gid=gid_val).first().mat_type
-    #mat_tech_val = ve_object.query.filter_by(gid=gid_val).first().mat_tech
-    #mat_prop_val = ve_object.query.filter_by(gid=gid_val).first().mat_prop
-    #llrs_val = ve_object.query.filter_by(gid=gid_val).first().llrs
-    #height_val = ve_object.query.filter_by(gid=gid_val).first().height
-    #yr_built_val = ve_object.query.filter_by(gid=gid_val).first().yr_built
-    #occupy_val = ve_object.query.filter_by(gid=gid_val).first().occupy
-    #occupy_dt_val = ve_object.query.filter_by(gid=gid_val).first().occupy_dt
-    #nonstrcexw_val = ve_object.query.filter_by(gid=gid_val).first().nonstrcexw
-    print time.time()-t0
-
     dic_attribute_val_py = flask.session['dic_attribute_val_py']
+    #query attribute values for select fields
+    rows = object_attribute.query.filter_by(object_id=gid_val).all()
+    height_fields = ['height','height2']
+    age_fields = ['yr_built']
+    text_fields = ['comment','rrvs_status']
+    attribute_vals = {}
+    for row in rows:
+        key = str(row.attribute_type_code)
+        if key.lower() in height_fields:
+            #convert to integer and store separately
+            attribute_vals['{}_1_val'.format(key.lower())]=int(row.attribute_numeric_1)
+            #also take value for type of int value
+            gid = dic_attribute_val_py[row.attribute_value]
+        elif key.lower() in age_fields:
+            #convert to integer and store separately
+            attribute_vals['year_1_val']=int(row.attribute_numeric_1)
+            #also take value for type of int value
+            gid = dic_attribute_val_py[row.attribute_value]
+        elif key.lower() in text_fields:
+            #keep string
+            attribute_vals['{}_val'.format(key.lower())]= row.attribute_value
+            gid = None
+        else:
+            #return gid to corresponding value in table dic_attribute_val
+            try:
+                gid = dic_attribute_val_py[row.attribute_value]
+            except KeyError:
+                gid = None
+        #add to dictionary
+        if gid != None:
+            attribute_vals['{}_gid'.format(key.lower())]=gid
 
-    return flask.jsonify(
-		# query values for text fields
-                height_1_val=int(row.height_1),height2_1_val=int(row.height2_1),
-		year_1_val = row.year_1,
-		comment_val = row.comment,
-                #TODO: VERY UGLY!! Find replacement to improve performance! query gid of attribute_values for select fields
-		mat_type_gid = dic_attribute_val_py[mat_type_val],
-		mat_tech_gid = dic_attribute_val_py[mat_tech_val],
-		mat_prop_gid = dic_attribute_val_py[mat_prop_val],
-		llrs_gid = dic_attribute_val_py[llrs_val],
-		llrs_duct_gid = dic_attribute_val_py[llrs_duct_val],
-		height_gid = dic_attribute_val_py[height_val],
-		height2_gid = dic_attribute_val_py[height2_val],
-		yr_built_gid = dic_attribute_val_py[yr_built_val],
-		occupy_gid = dic_attribute_val_py[occupy_val],
-		occupy_dt_gid = dic_attribute_val_py[occupy_dt_val],
-		position_gid = dic_attribute_val_py[position_val],
-		plan_shape_gid = dic_attribute_val_py[plan_shape_val],
-		str_irreg_gid = dic_attribute_val_py[str_irreg_val],
-		str_irreg_dt_gid = dic_attribute_val_py[str_irreg_dt_val],
-		str_irreg_type_gid = dic_attribute_val_py[str_irreg_type_val],
-		str_irreg_2_gid = dic_attribute_val_py[str_irreg_2_val],
-		str_irreg_dt_2_gid = dic_attribute_val_py[str_irreg_dt_val],
-		str_irreg_type_2_gid = dic_attribute_val_py[str_irreg_type_2_val],
-		roof_shape_gid = dic_attribute_val_py[roof_shape_val],
-		roof_covmat_gid = dic_attribute_val_py[roof_covmat_val],
-		roof_sysmat_gid = dic_attribute_val_py[roof_sysmat_val],
-		roof_systype_gid = dic_attribute_val_py[roof_systype_val],
-		roof_conn_gid = dic_attribute_val_py[roof_conn_val],
-		floor_mat_gid = dic_attribute_val_py[floor_mat_val],
-		floor_type_gid = dic_attribute_val_py[floor_type_val],
-		floor_conn_gid = dic_attribute_val_py[floor_conn_val],
-		foundn_sys_gid = dic_attribute_val_py[foundn_sys_val],
-		nonstrcexw_gid = dic_attribute_val_py[nonstrcexw_val],
-		vuln_gid = dic_attribute_val_py[vuln_val],
-		#mat_type_gid = dic_attribute_value.query.filter_by(attribute_value=mat_type_val).first().gid,
-		#mat_tech_gid = dic_attribute_value.query.filter_by(attribute_value=mat_tech_val).first().gid,
-		#mat_prop_gid = dic_attribute_value.query.filter_by(attribute_value=mat_prop_val).first().gid,
-		#llrs_gid = dic_attribute_value.query.filter_by(attribute_value=llrs_val).first().gid,
-		#llrs_duct_gid = dic_attribute_value.query.filter_by(attribute_value=llrs_duct_val).first().gid,
-		#height_gid = dic_attribute_value.query.filter_by(attribute_value=height_val).first().gid,
-		#height2_gid = dic_attribute_value.query.filter_by(attribute_value=height2_val).first().gid,
-		#yr_built_gid = dic_attribute_value.query.filter_by(attribute_value=yr_built_val).first().gid,
-		#occupy_gid = dic_attribute_value.query.filter_by(attribute_value=occupy_val).first().gid,
-		#occupy_dt_gid = dic_attribute_value.query.filter_by(attribute_value=occupy_dt_val).first().gid,
-		#position_gid = dic_attribute_value.query.filter_by(attribute_value=position_val).first().gid,
-		#plan_shape_gid = dic_attribute_value.query.filter_by(attribute_value=plan_shape_val).first().gid,
-		#str_irreg_gid = dic_attribute_value.query.filter_by(attribute_value=str_irreg_val).first().gid,
-		#str_irreg_dt_gid = dic_attribute_value.query.filter_by(attribute_value=str_irreg_dt_val).first().gid,
-		#str_irreg_type_gid = dic_attribute_value.query.filter_by(attribute_value=str_irreg_type_val).first().gid,
-		#str_irreg_2_gid = dic_attribute_value.query.filter_by(attribute_value=str_irreg_2_val).first().gid,
-		#str_irreg_dt_2_gid = dic_attribute_value.query.filter_by(attribute_value=str_irreg_dt_2_val).first().gid,
-		#str_irreg_type_2_gid = dic_attribute_value.query.filter_by(attribute_value=str_irreg_type_2_val).first().gid,
-		#roof_shape_gid = dic_attribute_value.query.filter_by(attribute_value=roof_shape_val).first().gid,
-		#roof_covmat_gid = dic_attribute_value.query.filter_by(attribute_value=roof_covmat_val).first().gid,
-		#roof_sysmat_gid = dic_attribute_value.query.filter_by(attribute_value=roof_sysmat_val).first().gid,
-		#roof_systype_gid = dic_attribute_value.query.filter_by(attribute_value=roof_systype_val).first().gid,
-		#roof_conn_gid = dic_attribute_value.query.filter_by(attribute_value=roof_conn_val).first().gid,
-		#floor_mat_gid = dic_attribute_value.query.filter_by(attribute_value=floor_mat_val).first().gid,
-		#floor_type_gid = dic_attribute_value.query.filter_by(attribute_value=floor_type_val).first().gid,
-		#floor_conn_gid = dic_attribute_value.query.filter_by(attribute_value=floor_conn_val).first().gid,
-		#foundn_sys_gid = dic_attribute_value.query.filter_by(attribute_value=foundn_sys_val).first().gid,
-		#nonstrcexw_gid = dic_attribute_value.query.filter_by(attribute_value=nonstrcexw_val).first().gid,
-		## query values for text fields
-		#height1_val = int(ve_object.query.filter_by(gid=gid_val).first().height_1),
-		#yr_built_bp_val = ve_object.query.filter_by(gid=gid_val).first().yr_built_bp,
-		## query gid of attribute_values for select fields
-		#mat_type_gid = dic_attribute_value.query.filter_by(attribute_value=mat_type_val).first().gid,
-		#mat_tech_gid = dic_attribute_value.query.filter_by(attribute_value=mat_tech_val).first().gid,
-		#mat_prop_gid = dic_attribute_value.query.filter_by(attribute_value=mat_prop_val).first().gid,
-		#llrs_gid = dic_attribute_value.query.filter_by(attribute_value=llrs_val).first().gid,
-		#height_gid = dic_attribute_value.query.filter_by(attribute_value=height_val).first().gid,
-		#yr_built_gid = dic_attribute_value.query.filter_by(attribute_value=yr_built_val).first().gid,
-		#occupy_gid = dic_attribute_value.query.filter_by(attribute_value=occupy_val).first().gid,
-		#occupy_dt_gid = dic_attribute_value.query.filter_by(attribute_value=occupy_dt_val).first().gid,
-		#nonstrcexw_gid = dic_attribute_value.query.filter_by(attribute_value=nonstrcexw_val).first().gid,
-                # query values for checkbox fields
-                #rrvs_status_val = str(ve_object.query.filter_by(gid=gid_val).first().rrvs_status)
-                rrvs_status_val = str(row.rrvs_status)
-	        )
+    return flask.jsonify(**attribute_vals)
 
-@app.route('/rrvsform', methods=['GET', 'POST'])
+#@app.route('/rrvsform', methods=['GET', 'POST'])
+#@login_required
+#def rrvsform():
+#    """
+#	This renders a template that displays all of the form objects if it's
+#	a Get request. If the user is attempting to Post then this view will push
+#	the data to the database.
+#	"""
+#    if flask.session['lang']=='ar':
+#        rrvs_form = RrvsForm_ar()
+#    else:
+#        rrvs_form = RrvsForm()
+#
+#    if flask.request.method == 'POST' and rrvs_form.validate():
+#        print 'UPDATE: Building {} updated!'.format(rrvs_form.gid_field.data)
+#        # check if checkbox for rrvs status is ticked and assign values to be used for database update
+#        if rrvs_form.rrvs_status_field.data == True:
+#            rrvs_status_val = 'COMPLETED'
+#        else:
+#            rrvs_status_val = 'MODIFIED'
+#        # update database with form content
+#        rows = object_attribute.query.filter_by(object_id=rrvs_form.gid_field.data)
+#        height_fields = ['height','height2']
+#        age_fields = ['yr_built']
+#        text_fields = ['comment']
+#        for row in rows:
+#            key = str(row.attribute_type_code).lower()
+#            if key not in ['build_type','build_subtype']:#not implemented
+#                if key in height_fields:
+#                    row.attribute_value = rrvs_form.__dict__[key+'_field'].data.attribute_value
+#                    row.attribute_numeric_1 = rrvs_form.__dict__[key+'_1_val_field'].data
+#                elif key in age_fields:
+#                    row.attribute_value = rrvs_form.__dict__[key+'_field'].data.attribute_value
+#                    row.attribute_numeric_1 = rrvs_form.__dict__['year_1_val_field'].data
+#                elif key in text_fields:
+#                    row.attribute_value = rrvs_form.__dict__[key+'_field'].data
+#                elif key == 'rrvs_status':
+#                    row.attribute_value = rrvs_status_val
+#                else:
+#                    row.attribute_value = rrvs_form.__dict__[key+'_field'].data.attribute_value
+#        db.session.commit()
+#        #update session variable for screened buildings
+#        flask.session['screened'][flask.session['bdg_gids'].index(int(rrvs_form.gid_field.data))]=True
+#
+#    # if no post request is send the template is rendered normally showing numbers of completed bdgs
+#    # get the data for the rrvsFormTable from the database
+#    bdg_gids = flask.session['bdg_gids']
+#    rows = object_attribute.query.filter(db.and_(object_attribute.object_id.in_(bdg_gids),object_attribute.attribute_type_code=='RRVS_STATUS')).all()
+#    bdgs = []
+#    for row in rows:
+#        data = [str(row.object_id), str(row.attribute_value)]
+#        bdgs.append(data)
+#    return flask.render_template(template_name_or_list='rrvsform.html',
+#                                 rrvs_form=rrvs_form,
+#                                 bdgs=bdgs,
+#                                 n=len(flask.session['bdg_gids']),
+#                                 c=len([x for x in flask.session['screened'] if x==True]))
+
+@app.route('/queryform', methods=['GET', 'POST'])
 @login_required
-def rrvsform():
+def queryform():
     """
 	This renders a template that displays all of the form objects if it's
 	a Get request. If the user is attempting to Post then this view will push
 	the data to the database.
 	"""
-    if flask.session['lang']=='ar':
-        rrvs_form = RrvsForm_ar()
-    else:
-        rrvs_form = RrvsForm()
+    bdg_gids = []
+    query_form = QueryForm()
 
-    if flask.request.method == 'POST' and rrvs_form.validate():
-        # check if checkbox for rrvs status is ticked and assign values to be used for database update
-        if rrvs_form.rrvs_status_field.data == True:
-            rrvs_status_val = 'COMPLETED'
-        else:
-            rrvs_status_val = 'MODIFIED'
-        # update database with form content
-        row = ve_object.query.filter_by(gid=rrvs_form.gid_field.data)
-        row.update({ve_object.mat_type: rrvs_form.mat_type_field.data.attribute_value,
-                    ve_object.mat_tech: rrvs_form.mat_tech_field.data.attribute_value,
-                    ve_object.mat_prop: rrvs_form.mat_prop_field.data.attribute_value,
-                    ve_object.llrs: rrvs_form.llrs_field.data.attribute_value,
-                    ve_object.llrs_duct: rrvs_form.llrs_duct_field.data.attribute_value,
-                    ve_object.height: rrvs_form.height_field.data.attribute_value,
-                    ve_object.height_1: rrvs_form.height_1_val_field.data,
-                    ve_object.height2: rrvs_form.height2_field.data.attribute_value,
-                    ve_object.height2_1: rrvs_form.height2_1_val_field.data,
-                    ve_object.yr_built: rrvs_form.yr_built_field.data.attribute_value,
-                    ve_object.year_1: rrvs_form.year_1_val_field.data,
-                    ve_object.occupy: rrvs_form.occupy_field.data.attribute_value,
-                    ve_object.occupy_dt: rrvs_form.occupy_dt_field.data.attribute_value,
-                    ve_object.position: rrvs_form.position_field.data.attribute_value,
-                    ve_object.plan_shape: rrvs_form.plan_shape_field.data.attribute_value,
-                    ve_object.str_irreg: rrvs_form.str_irreg_field.data.attribute_value,
-                    ve_object.str_irreg_dt: rrvs_form.str_irreg_dt_field.data.attribute_value,
-                    ve_object.str_irreg_type: rrvs_form.str_irreg_type_field.data.attribute_value,
-                    ve_object.str_irreg_2: rrvs_form.str_irreg_2_field.data.attribute_value,
-                    ve_object.str_irreg_dt_2: rrvs_form.str_irreg_dt_2_field.data.attribute_value,
-                    ve_object.str_irreg_type_2: rrvs_form.str_irreg_type_2_field.data.attribute_value,
-                    ve_object.nonstrcexw: rrvs_form.nonstrcexw_field.data.attribute_value,
-                    ve_object.roof_shape: rrvs_form.roof_shape_field.data.attribute_value,
-                    ve_object.roofcovmat: rrvs_form.roof_covmat_field.data.attribute_value,
-                    ve_object.roofsysmat: rrvs_form.roof_sysmat_field.data.attribute_value,
-                    ve_object.roofsystyp: rrvs_form.roof_systype_field.data.attribute_value,
-                    ve_object.roof_conn: rrvs_form.roof_conn_field.data.attribute_value,
-                    ve_object.floor_mat: rrvs_form.floor_mat_field.data.attribute_value,
-                    ve_object.floor_type: rrvs_form.floor_type_field.data.attribute_value,
-                    ve_object.floor_conn: rrvs_form.floor_conn_field.data.attribute_value,
-                    ve_object.foundn_sys: rrvs_form.foundn_sys_field.data.attribute_value,
-                    ve_object.comment: rrvs_form.comment_field.data,
-                    ve_object.vuln: rrvs_form.vuln_field.data.attribute_value,
-                    ve_object.rrvs_status: rrvs_status_val
-                    }, synchronize_session=False)
-        db.session.commit()
-        #update session variable for screened buildings
-        flask.session['screened'][flask.session['bdg_gids'].index(int(rrvs_form.gid_field.data))]=True
+    if flask.request.method == 'POST' and query_form.validate():
+
+        ###################################
+        # Survey based query
+        ###################################
+        init=1 #is changed as soon as one of the query fields is set from there bdg_gids can only be subsets of the bdg_gids determined in the first step
+        novals = ['','None','__None','on']
+        survey_name = ''
+        try:
+            survey_name = query_form.data['survey_field'].name
+        except:
+            pass
+
+        if survey_name not in novals:
+            survey_gid = survey.query.filter_by(name = survey_name).first().gid
+            rows = t_object.query.filter_by(survey_gid = survey_gid).all()
+            bdg_gids = [row.gid for row in rows]
+            init = 0
+
+        ###################################
+        # Spatial query
+        ###################################
+
+        crds = [query_form.data['lat_min_field'],query_form.data['lat_max_field'],query_form.data['lon_min_field'],query_form.data['lon_max_field']]
+        try:
+            crds = [float(c) for c in crds]
+            spatial = True
+        except:
+            spatial = False
+            print 'invalid coords'
+
+        if spatial:
+            #make a rectangle
+            wktroi = "POLYGON(({} {},{} {}, {} {}, {} {}, {} {}))".format(crds[2],crds[0],crds[2],crds[1],crds[3],crds[1],crds[3],crds[0],crds[2],crds[0])
+            roi = WKTElement(wktroi,srid=4326)
+            #get all buildings within roi
+            rows = db.session.query(t_object).filter(t_object.the_geom.ST_Within(roi)).all()
+            if init:
+                init = 0
+                bdg_gids = [row.gid for row in rows]
+            else:
+                new_bdg_gids = [row.gid for row in rows]
+                bdg_gids = list(filter(set(bdg_gids).__contains__,new_gids))
+
+
+        ###################################
+        # Feature based query
+        ###################################
+        #get all entries in the query form which are not empty or none
+        query_vals={}
+        nokeys = ['csrf_token','submit','rrvs_status_field','survey_field','lat_min_field','lat_max_field','lon_min_field','lon_max_field']
+
+        for key in query_form.data.keys():
+            if key not in nokeys:
+                val = query_form.data[key]
+            if (val not in novals) and (val!=None):
+                query_vals[key] = val.attribute_value
+
+        #get all buildings corresponding to query values
+        for key in query_vals.keys():
+           rows = object_attribute.query.filter_by(attribute_value = query_vals[key]).all()
+           if init:
+               bdg_gids = [row.object_id for row in rows]
+               init = 0
+           else:
+               #intersect lists
+               new_gids = [row.object_id for row in rows]
+               bdg_gids = list(filter(set(bdg_gids).__contains__,new_gids))
+
+        #get features
+        features = {}
+        rows = object_attribute.query.filter(object_attribute.object_id.in_(bdg_gids)).all()
+        #initialize features dictionary for all buildings
+        for row in rows:
+            features[row.attribute_type_code]=[]
+        features['bdg_gid'] = []
+        #append features
+        for row in rows:
+            gid = row.object_id
+            if gid not in features['bdg_gid']:
+                features['bdg_gid'].append(gid)
+            features[row.attribute_type_code].append(row.attribute_value)
+
+        #geometry = ... SHOULD BE done in map
+        flask.session['bdg_gids'] = bdg_gids
+
+
+       # # update database with form content
+       # rows = object_attribute.query.filter_by(object_id=rrvs_form.gid_field.data)
+       # height_fields = ['height','height2']
+       # age_fields = ['yr_built']
+       # text_fields = ['comment']
+       # for row in rows:
+       #     key = str(row.attribute_type_code).lower()
+       #     if key not in ['build_type','build_subtype']:#not implemented
+       #         if key in height_fields:
+       #             row.attribute_value = rrvs_form.__dict__[key+'_field'].data.attribute_value
+       #             row.attribute_numeric_1 = rrvs_form.__dict__[key+'_1_val_field'].data
+       #         elif key in age_fields:
+       #             row.attribute_value = rrvs_form.__dict__[key+'_field'].data.attribute_value
+       #             row.attribute_numeric_1 = rrvs_form.__dict__['year_1_val_field'].data
+       #         elif key in text_fields:
+       #             row.attribute_value = rrvs_form.__dict__[key+'_field'].data
+       #         elif key == 'rrvs_status':
+       #             row.attribute_value = rrvs_status_val
+       #         else:
+       #             row.attribute_value = rrvs_form.__dict__[key+'_field'].data.attribute_value
+       # db.session.commit()
+       # #update session variable for screened buildings
+       # flask.session['screened'][flask.session['bdg_gids'].index(int(rrvs_form.gid_field.data))]=True
 
     # if no post request is send the template is rendered normally showing numbers of completed bdgs
     # get the data for the rrvsFormTable from the database
-    bdg_gids = flask.session['bdg_gids']
-    rows = ve_object.query.filter(ve_object.gid.in_(bdg_gids)).all()
-    bdgs = []
+    #bdg_gids = flask.session['bdg_gids']
+
+    #NOTE: Table --> use it for showing buildings informations!?
+    rows = object_attribute.query.filter(object_attribute.object_id.in_(bdg_gids)).all()
+    bdgs = {}
+    gids = []
     for row in rows:
-        data = [str(row.gid), str(row.rrvs_status)]
-        bdgs.append(data)
-    return flask.render_template(template_name_or_list='rrvsform.html',
-                                 rrvs_form=rrvs_form,
-                                 bdgs=bdgs,
+        gid = str(row.object_id)
+        if gid not in gids:
+            #create dictionary for new bdg
+            bdgs[gid]={}
+            gids.append(gid)
+        #write values to bdg
+        bdgs[gid]['GID']=gid
+        bdgs[gid][str(row.attribute_type_code)] = str(row.attribute_value)
+        #add a number column if exists
+        try:
+            number = int(row.attribute_numeric_1)
+            bdgs[gid][str(row.attribute_type_code)+'_VAL'] = str(number)
+        except:
+            pass
+
+    #convert to list o lists
+    #NOTE: keys must be same and same order as in jQuery.DataTable see queryform.html
+    keys= ['GID', 'MAT_TYPE', 'MAT_TECH',  'MAT_PROP',  'LLRS',  'LLRS_DUCT', 'HEIGHT', 'HEIGHT_VAL', 'HEIGHT2', 'HEIGHT2_VAL',  'YR_BUILT', 'YR_BUILT_VAL', 'OCCUPY', 'OCCUPY_DT',  'PLAN_SHAPE', 'POSITION', 'STR_IRREG', 'STR_IRREG_DT',  'STR_IRREG_TYPE', 'STR_IRREG_DT', 'STR_IRREG_DT_2', 'STR_IRREG_TYPE_2', 'NONSTRCEXW', 'ROOF_SHAPE', 'ROOFCOVMAT', 'ROOFSYSMAT', 'ROOFSYSTYP', 'ROOF_CONN', 'FLOOR_MAT', 'FLOOR_TYPE', 'FLOOR_CONN', 'FOUNDN_SYS', 'VULN', 'RRVS_STATUS']
+
+    bdgs_list=[]
+    for gid in bdgs.keys():
+        bdgs_list.append([bdgs[gid][key] for key in keys])
+
+    #for row in rows:
+    #    data = [str(row.object_id), str(row.attribute_value)]
+    #    bdgs.append(data)
+    return flask.render_template(template_name_or_list='queryform.html',
+                                 rrvs_form=query_form,
+                                 bdgs=bdgs_list,
                                  n=len(flask.session['bdg_gids']),
                                  c=len([x for x in flask.session['screened'] if x==True]))

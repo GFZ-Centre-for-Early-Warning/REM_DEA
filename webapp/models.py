@@ -164,3 +164,50 @@ class gps(db.Model):
     azimuth = db.Column(db.Float)
     the_geom = db.Column(Geometry(geometry_type='POINT',srid=4326))
 
+class t_object(db.Model):
+    """
+    Holds object from the asset schema.
+    """
+    __tablename__ = "object"
+    __table_args__ = {'schema':'asset'}
+
+    #building id
+    gid = db.Column(db.Integer, primary_key=True)
+    #survey_gid
+    survey_gid = db.Column(db.Integer)
+    #the geometry
+    the_geom = db.Column(Geometry(geometry_type='POLYGON', srid=4326))
+
+
+
+class object_attribute(db.Model):
+    """
+    Holds object_attribute from the asset schema.
+    """
+    __tablename__ = "object_attribute"
+    __table_args__ = {'schema':'asset'}
+
+    #gid of attribute
+    gid = db.Column(db.Integer, primary_key=True)
+    #building id
+    object_id = db.Column(db.Integer)
+    #attribute code
+    attribute_type_code = db.Column(db.String(254))
+    #attribute value
+    attribute_value = db.Column(db.String(254))
+    #attribute numeric value
+    attribute_numeric_1 = db.Column(db.Numeric)
+
+class survey(db.Model):
+    """
+    Holds object_attribute from the asset schema.
+    """
+    __tablename__ = "survey"
+    __table_args__ = {'schema':'survey'}
+
+    #gid of attribute
+    gid = db.Column(db.Integer, primary_key=True)
+    #name of survey
+    name = db.Column(db.String(254))
+
+

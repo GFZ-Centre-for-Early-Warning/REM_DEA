@@ -112,7 +112,7 @@ th {
 	background-color: #fff;
 	border: solid 1px #fff;
 	padding: 0px;
-	width: 600px; /*600px*/
+	width: 700px; /*600px*/
 	height: 300px; /*600px*/
 }
 
@@ -148,12 +148,6 @@ th {
 	margin-bottom: 10px;
 }
 
-.formLayoutTable
-{
-	float: left;
-	width: 310px;
-	margin-right: 8px;
-}
 
 br
 {
@@ -184,12 +178,13 @@ br
 .content {
   position: absolute;
   top: 23px;
-  left: 552px; /*252px*/
+  left: 233px; /*252px*/
+  width: 693px;
   background: white;
   font: 14px Arial, Helvetica, sans-serif;
   color: #0B2F3A;
   text-align: center;
-  right: 0;
+  right: 0; /*break it 0 before*/
   bottom: 0;
   padding: 20px;
   border: 1px solid #ccc;
@@ -201,4 +196,12 @@ br
 }
 [type=radio]:checked ~ label ~ .content {
   z-index: 1;
+}
+
+.formLayoutTable
+{
+	float: right;
+    top: 390px;
+	width: 700px;
+	margin-right: 8px;
 }

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>RRVS Webtool - Map</title>
+    <title>RRVS Webtool - Map</title>
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8"/> 
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/main.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='leaflet/leaflet.css') }}">	
@@ -116,13 +116,16 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
             //configPano.panorama = "/panellum/../static/panoimg/ladybug_panoramic_" + imgBdgData.img_id + ".jpg";
             configPano.panorama = "/pano/"+e.feature.properties.repository + "/"+ e.feature.properties.filename;
             configPano.title = "FrameID: " + e.feature.properties.frame_id;
+            //Google Streetview link
+            var gsv = "http://maps.google.com?layer=c&cbll="+imgBdgData.imgLoc.lat+','+imgBdgData.imgLoc.lng+"&cbp=12,"+imgBdgData.imgAzi+","+"0,5";
+            configPano.author = gsv;
         }
         
-		//function for interaction between gps layer and panoImg iframe
-		function updatePanoImg() {
-			// zoom to feature in map
-			//map.fitBounds(highlightedGPS.getBounds(), {maxZoom: 18});
-			// update src of iframe 1 (panoImg)
+	    //function for interaction between gps layer and panoImg iframe
+	    function updatePanoImg() {
+	        // zoom to feature in map
+		//map.fitBounds(highlightedGPS.getBounds(), {maxZoom: 18});
+		// update src of iframe 1 (panoImg)
             // distinguish between frame mode or multi window mode
             if(self==top){
 			    var ifrm = opener.document.getElementById('ifrm1');
@@ -148,17 +151,18 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
             configPano.hotSpots = [{pitch:'0',yaw:configPano.yaw,type:'info',text:'{{_('Selected building')}}'}];
         }
 
-		//function for refreshing rrvsForm iframe and pannellum iframe based on map iframe action
-		function updateForm(e) {
-			// update content of iframe 3 (rrvsForm)
-			var ifrm = parent.document.getElementById('ifrm3');
-			var doc = ifrm.contentDocument? ifrm.contentDocument: ifrm.contentWindow.document;
-			doc.forms['rrvsForm'].elements['gid_field'].focus();	// focus in and out of the gid_field is needed by rrvsform.html to trigger the form update function (on focusout)
-			doc.forms['rrvsForm'].elements['gid_field'].value = e.target.feature.properties.gid;
-			doc.forms['rrvsForm'].elements['rrvs_status_field'].focus();	
-			// update building map styles
-			resetHighlightBuilding();
-			highlightBuilding(e);
+	//function for refreshing rrvsForm iframe and pannellum iframe based on map iframe action
+	function updateForm(e) {
+	    // update content of iframe 3 (rrvsForm)
+	    var ifrm = parent.document.getElementById('ifrm3');
+	    var doc = ifrm.contentDocument? ifrm.contentDocument: ifrm.contentWindow.document;
+	    doc.forms['rrvsForm'].elements['gid_field'].focus();	// focus in and out of the gid_field is needed by rrvsform.html to trigger the form update function (on focusout)
+	    doc.forms['rrvsForm'].elements['gid_field'].value = e.target.feature.properties.gid;
+	    //doc.forms['rrvsForm'].elements['gid_field'].focus();	// focus in and out of the gid_field is needed by rrvsform.html to trigger the form update function (on focusout)
+	    doc.forms['rrvsForm'].elements['rrvs_status_field'].focus();	
+	    // update building map styles
+	    resetHighlightBuilding();
+	    highlightBuilding(e);
             //store the building location
             imgBdgData.bdgLoc=e.latlng;
             // update panoramic image
@@ -171,29 +175,31 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
             closestImg.setStyle(gpsHighlightStyle);
             highlightedGPS=closestImg;
             //set configPano and imgBdgData accordingly
+	    console.log('FromMap'+closestImg); 
             updateImgParams(closestImg);
             imgBdgInteraction();
             //update the image
             updatePanoImg();
-		}
+	}
         
         //function for refreshing map iframe and pannellum iframe based on rrvsForm iframe action
-		function updateMap(gid) {
-			// get feature by id
-			var e = buildingsJSON.getLayer(gid);
+	function updateMap(gid) {
+	    // get feature by id
+	    var e = buildingsJSON.getLayer(gid);
             //get zoom level and layer bounds
             //var zl = map.getZoom();
             //map.setView([e.latLng.lat, e.latLng.lng], zl);
             map.fitBounds(e.getBounds());
-			// update building map styles
-			resetHighlightBuilding();
-			e.setStyle({
-				weight: 3,
+	    // update building map styles
+	    resetHighlightBuilding();
+	    e.setStyle({
+		weight: 3,
                 opacity: 1,
                 color: '#008000'
-			});
-			//store the building location
-            imgBdgData.bdgLoc=([e.feature.geometry.coordinates[0][0][0][0], e.feature.geometry.coordinates[0][0][0][1]]);
+	    });
+	    //store the building location
+//            imgBdgData.bdgLoc=([e.feature.geometry.coordinates[0][0][0][0], e.feature.geometry.coordinates[0][0][0][1]]);
+            imgBdgData.bdgLoc=L.latLng(e.feature.geometry.coordinates[0][0][0][1], e.feature.geometry.coordinates[0][0][0][0]);
             // update panoramic image
             // find closest img 
             var closestImg = leafletKnn(gpsJSON).nearestLayer(imgBdgData.bdgLoc,1);
@@ -203,12 +209,27 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
             closestImg.setStyle(gpsHighlightStyle);
             highlightedGPS=closestImg;
             //set configPano and imgBdgData accordingly
+	    console.log('FromTable'+closestImg) 
             updateImgParams(closestImg);
-            imgBdgData.bdgLoc=L.latLng(e.feature.geometry.coordinates[0][0][0][0], e.feature.geometry.coordinates[0][0][0][1]);
+            //imgBdgData.bdgLoc=L.latLng(e.feature.geometry.coordinates[0][0][0][0], e.feature.geometry.coordinates[0][0][0][1]);
             imgBdgInteraction();
             //update the image
             updatePanoImg();
-		}
+	}
+        //function for refreshing map after submit
+	function updateMap2(gid) {
+	    // get feature by id
+	    var e = buildingsJSON.getLayer(gid);
+	    // update building map styles
+	    resetHighlightBuilding();
+	    e.setStyle({
+		weight: 3,
+                opacity: 1,
+                color: '#008000'
+	    });
+        var zl = map.getZoom();
+        map.setView([e.latLng.lat, e.latLng.lng], zl);
+	}
         
         //function to highlight clicked img and update panellum frame
         function clickedImg(e){

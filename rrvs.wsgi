@@ -1,7 +1,8 @@
 import sys
 import logging
 logging.basicConfig(stream=sys.stderr)
-sys.path.append("/var/www/html/rrvs")
+sys.path.append("/srv/http/dea")
+
 
 from webapp import app as application,db,babel
 
