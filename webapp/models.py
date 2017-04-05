@@ -210,4 +210,31 @@ class survey(db.Model):
     #name of survey
     name = db.Column(db.String(254))
 
+class Boundary_types(db.Model):
+    """
+    Holds boundary_types from the boundaries schema.
+    """
+    __tablename__ = "boundary_types"
+    __table_args__ = {'schema':'boundaries'}
+
+    #gid of attribute
+    gid = db.Column(db.Integer, primary_key=True)
+    #type of boundary
+    type = db.Column(db.String(20))
+
+class Boundaries(db.Model):
+    """
+    Holds boundaries from the boundaries schema.
+    """
+    __tablename__ = "boundaries"
+    __table_args__ = {'schema':'boundaries'}
+
+    #gid of attribute
+    gid = db.Column(db.Integer, primary_key=True)
+    #type of boundary
+    types = db.Column(db.String(20))
+    #the geometry
+    geom = db.Column(Geometry(geometry_type='POLYGON', srid=4326))
+
+
 

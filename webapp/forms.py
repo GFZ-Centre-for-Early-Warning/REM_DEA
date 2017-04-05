@@ -128,7 +128,7 @@ class RrvsForm(Form):
 #    second_irreg_field = BooleanField(label=lazy_gettext("Second Irregularity"))
     rrvs_status_field = BooleanField(label=lazy_gettext("Completed"))
     # Submit field
-    submit = SubmitField(lazy_gettext("Update building"))
+    submit = SubmitField(lazy_gettext("Query buildings"))
 
 class RrvsForm_ar(Form):
     """

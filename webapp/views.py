@@ -10,15 +10,16 @@ Description: The main views file setting up the flask application layout, defini
 '''
 import flask
 from webapp import app, db
-from models import survey,t_object, object_attribute, ve_object, dic_attribute_value, pan_imgs,gps, User, task, tasks_users
+from models import Boundaries,Boundary_types,survey,t_object, object_attribute, ve_object, dic_attribute_value, pan_imgs,gps, User, task, tasks_users
 from forms import QueryForm,RrvsForm, RrvsForm_ar,LoginForm
 from flask.ext.security import login_required, login_user, logout_user
 import geoalchemy2.functions as func
 from geoalchemy2 import WKTElement
 import json
 from geojson import Feature, FeatureCollection, dumps
+import geojson
 import time
-
+from shapely.geometry import shape
 
 ########################################################
 # REST interface getting task related buildings as json
@@ -82,6 +83,8 @@ def login():
             flask.session['img_gids'] = task.query.filter_by(id=flask.session['taskid']).first().img_ids
             #flags for screened buildings
             flask.session['screened'] = [False]*len(flask.session['bdg_gids'])
+            #boundary (selectable from map)
+            flask.session['boundary']=''
             #language is set in babel locale in __init__.py
             #get gid's of attribute values as defined in dic_attribute_value as python dictionary
             dic_attribute_val_query=dic_attribute_value.query.all()#.options(load_only("gid","attribute_value"))
@@ -147,7 +150,28 @@ def map():
         img_gps.append(feature)
     gps_json = dumps(FeatureCollection(img_gps))
 
-    return flask.render_template('map.html',bdgs=bdgs_json,gps=gps_json)
+    #add all strata layers
+    btype_gids = db.session.query(Boundaries.types.distinct()).all()
+    btype_gids = sorted([tupl[0] for tupl in btype_gids])
+
+    #dictionary for all types of boundaries
+    boundaries_layers = {}
+    for bgid in btype_gids:
+        #get all boundaries corresponding to these
+        rows = Boundaries.query.filter_by(types=bgid).all()
+        boundary = []
+        #append each feature as json
+        for row in rows:
+            geometry = json.loads(db.session.scalar(func.ST_AsGeoJSON(row.geom)))
+            feature = Feature(id=row.gid,geometry=geometry,properties={"gid":row.gid})
+            boundary.append(feature)
+
+        #get name of btype as layername
+        btype = Boundary_types.query.filter_by(gid=bgid).first().type
+        #store as feature collection to dictionary
+        boundaries_layers[btype] = dumps(FeatureCollection(boundary))
+
+    return flask.render_template('map.html',bdgs=bdgs_json,gps=gps_json,boundaries=boundaries_layers)
 
 @app.route('/pannellum')
 @login_required
@@ -156,6 +180,22 @@ def pannellum():
     This will render a template that holds the panoimage viewer.
     """
     return flask.render_template('pannellum.htm')
+
+@app.route('/_update_boundary', methods=['POST'])
+@login_required
+def update_boundary():
+    """
+    This updates the boundary if one is selected in the map
+    """
+    #Try to get a polygon out of it and store it in the session
+    try:
+        g1 = flask.request.json['geometry']
+        g2 = shape(g1)
+        flask.session['boundary']=g2.wkt
+    except:
+        flask.session['boundary']=''
+
+    return ('', 204)
 
 @app.route('/_update_rrvsform')
 @login_required
@@ -294,27 +334,34 @@ def queryform():
         # Spatial query
         ###################################
 
-        crds = [query_form.data['lat_min_field'],query_form.data['lat_max_field'],query_form.data['lon_min_field'],query_form.data['lon_max_field']]
-        try:
-            crds = [float(c) for c in crds]
+        #check if there is some polygon in the session if not check if rectangle section defined
+        if (flask.session['boundary']==''):
+            crds = [query_form.data['lat_min_field'],query_form.data['lat_max_field'],query_form.data['lon_min_field'],query_form.data['lon_max_field']]
+            try:
+                crds = [float(c) for c in crds]
+                wktroi = "POLYGON(({} {},{} {}, {} {}, {} {}, {} {}))".format(crds[2],crds[0],crds[2],crds[1],crds[3],crds[1],crds[3],crds[0],crds[2],crds[0])
+                spatial = True
+            except:
+                spatial = False
+                print 'invalid coords'
+        else:
+            #clicked polygon in map
+            wktroi = flask.session['boundary']
             spatial = True
-        except:
-            spatial = False
-            print 'invalid coords'
 
+        #Check if any spatial constraints are set
         if spatial:
-            #make a rectangle
-            wktroi = "POLYGON(({} {},{} {}, {} {}, {} {}, {} {}))".format(crds[2],crds[0],crds[2],crds[1],crds[3],crds[1],crds[3],crds[0],crds[2],crds[0])
             roi = WKTElement(wktroi,srid=4326)
+            print 'ROI',roi
+            #make a rectangle
             #get all buildings within roi
             rows = db.session.query(t_object).filter(t_object.the_geom.ST_Within(roi)).all()
             if init:
                 init = 0
                 bdg_gids = [row.gid for row in rows]
             else:
-                new_bdg_gids = [row.gid for row in rows]
+                new_gids = [row.gid for row in rows]
                 bdg_gids = list(filter(set(bdg_gids).__contains__,new_gids))
-
 
         ###################################
         # Feature based query

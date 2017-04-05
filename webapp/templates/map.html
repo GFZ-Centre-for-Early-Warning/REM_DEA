@@ -7,6 +7,7 @@
 	<link rel="stylesheet" href="{{ url_for('static', filename='leaflet/leaflet.css') }}">	
 	<script src="{{ url_for('static', filename='leaflet/leaflet.js') }}"></script>
 	<script src="{{ url_for('static', filename='leaflet-knn.js') }}"></script>
+	<script src="{{ url_for('static', filename='leaflet-pip.js') }}"></script>
 	<script type="text/javascript" src="{{ url_for('static', filename='jquery-1.12.0.min.js') }}"></script>
 </head>
 <body>
@@ -155,11 +156,11 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
 	function updateForm(e) {
 	    // update content of iframe 3 (rrvsForm)
 	    var ifrm = parent.document.getElementById('ifrm3');
-	    var doc = ifrm.contentDocument? ifrm.contentDocument: ifrm.contentWindow.document;
-	    doc.forms['rrvsForm'].elements['gid_field'].focus();	// focus in and out of the gid_field is needed by rrvsform.html to trigger the form update function (on focusout)
-	    doc.forms['rrvsForm'].elements['gid_field'].value = e.target.feature.properties.gid;
+	    //var doc = ifrm.contentDocument? ifrm.contentDocument: ifrm.contentWindow.document;
 	    //doc.forms['rrvsForm'].elements['gid_field'].focus();	// focus in and out of the gid_field is needed by rrvsform.html to trigger the form update function (on focusout)
-	    doc.forms['rrvsForm'].elements['rrvs_status_field'].focus();	
+	    //doc.forms['rrvsForm'].elements['gid_field'].value = e.target.feature.properties.gid;
+	    ////doc.forms['rrvsForm'].elements['gid_field'].focus();	// focus in and out of the gid_field is needed by rrvsform.html to trigger the form update function (on focusout)
+	    //doc.forms['rrvsForm'].elements['rrvs_status_field'].focus();	
 	    // update building map styles
 	    resetHighlightBuilding();
 	    highlightBuilding(e);
@@ -233,6 +234,8 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
         
         //function to highlight clicked img and update panellum frame
         function clickedImg(e){
+            var test = e;
+            console.log(test);
             resetHighlightGPS(); 
             e.target.setStyle(gpsHighlightStyle);
             highlightedGPS=e.target;
@@ -261,9 +264,92 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
 				click: updateForm
 			});
 		}
+
+        //BOUNDARIES
+        
+        layerControl = L.control.layers({'OpenStreetMap': basemap})
+
+        function boundaryDefaultStyle() {
+			return {
+				fillColor: "#800080",
+				fillOpacity: 0.0,
+				weight: 3,
+                opacity: 0.8,
+                color: "#800080"
+			};
+		}
+        
+        var boundaryHighlightStyle = {
+				fillColor: "#800080",
+				fillOpacity: 0.5,
+				weight: 3,
+                opacity: 1.0,
+                color: "#FF000FF"
+        }
+        
+        //function removing highlight from Boundary
+		function resetHighlightBoundary() {
+            strataJSON.setStyle(boundaryDefaultStyle);
+		}
+        
+        //function to highlight clicked boundary and update spatial query setting
+        function clickedBoundary(feature){
+	        // get feature by id
+	        var e = strataJSON.getLayer(feature.id);
+            map.fitBounds(e.getBounds());
+	        // update boundary map styles
+	        resetHighlightBoundary();
+	        e.setStyle(boundaryHighlightStyle);
+            //update boundary on server side
+            updateBoundary(feature)
+        };
+
+        //function for adding actions to mouse events on boundary layer--SOLVED with map click event
+		function onEachFeatureBoundary(feature, layer) {
+			layer._leaflet_id = feature.id;	// to select feature by id from outside map
+		//	layer.on({
+		//	    click: clickedBoundary
+		//});
+        }
+
+        //send the boundary as selected in map to the server
+        function updateBoundary(feature){
+            // send boundary feature as selected from map
+            $.ajax({
+                type: 'POST',
+                // Provide correct Content-Type, so that Flask will know how to process it.
+                contentType: 'application/json',
+                // Encode your data as JSON.
+                //data: JSON.stringify(post_obj),
+                data: JSON.stringify(feature),
+                // This is the type of data you're expecting back from the server.
+                dataType: 'json',
+                url: '{{ url_for('update_boundary') }}',
+                success: function (e) {
+                    console.log(e);
+                }
+	    	});
+	    };  
+					
+		
+        //add boundary layers
+        {% block content %}
+        {% for type,boundary in boundaries.iteritems() %}
+            var {{ type }}JSON = L.geoJson({{boundary|safe}},{
+                clickable: false,
+		        style: boundaryDefaultStyle,
+		        onEachFeature: onEachFeatureBoundary
+		    });
+            {{ type }}JSON.addTo(map);
+            layerControl.addOverlay({{ type }}JSON, "{{ type }}",
+	    				 {collapsed:true});
+
+        {% endfor %}
+        {% endblock %}
 		
 		//add gps layer
 		gpsJSON = L.geoJson({{gps|safe}},{
+            clickable: true,
 			style: gpsDefaultStyle,
 			onEachFeature: onEachFeatureGps,
 			pointToLayer: function (feature, latlng) {  
@@ -274,13 +360,14 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
 			
 		//add buildings layer
 		buildingsJSON = L.geoJson({{bdgs|safe}},{
-		style: building_style,
-		onEachFeature: onEachFeatureBuilding
+            clickable: true,
+		    style: building_style,
+		    onEachFeature: onEachFeatureBuilding
 		});
 		buildingsJSON.addTo(map);
 		
 		//focus map on layer extent
-		map.fitBounds(gpsJSON.getBounds());
+		map.fitBounds(buildingsJSON.getBounds());
 
 		//control that shows info on hover
 		//var info = L.control();
@@ -313,20 +400,49 @@ attribution: "<a href='http://www.mapbox.com/about/maps/' target='_blank'>&copy;
         map.on('mousemove', function (e) {
             setLatLon(e);
         });
+
+        //There was a click on the map
         map.on('click', function (e) {
+            //set the coordinates of the point
             setLatLon(e);
+            //Determine boundary layer which could be clicked on
+            strata = leafletPip.pointInLayer(e.latlng,strataJSON);
+            if (strata.length==0){
+                updateBoundary({});
+	            resetHighlightBoundary();
+                console.log('no');
+            }else{
+                clickedBoundary(strata[0].feature);
+                console.log(strata);
+                console.log('yes');
+            };
+
+            //map.eachLayer(function(layer){
+            //    if(layer==gpsJSON){ 
+            //    }else if(layer==buildingsJSON){
+            //    }else{
+            //    }
+            //    //result = leafletPip.pointInLayer(e.latlng,layer);
+            //    //alert("result:"+result);
+            //});
         });
         //set default:
         setLatLon();
 
 		//add layer control
-		L.control.layers({'OpenStreetMap': basemap},
-						 {"PanoImages": gpsJSON,
-						 "Buildings": buildingsJSON},
-						 {collapsed:true}).addTo(map);
+		//layerControl = L.control.layers({'OpenStreetMap': basemap},
+	    //				 {"PanoImages": gpsJSON,
+	    //				 "Buildings": buildingsJSON},
+	    //				 {collapsed:true}).addTo(map);
+        layerControl.addOverlay(gpsJSON, "PanoImages",
+	    				 {collapsed:true});
+        layerControl.addOverlay(buildingsJSON,"Buildings",
+	    				 {collapsed:true}).addTo(map);
 		
 		//add scale
 		L.control.scale({options: {position: 'bottomleft',maxWidth: 100,metric: true,imperial: false,updateWhenIdle: false}}).addTo(map);
+	    
+
 	</script>
 </body>
 </html>

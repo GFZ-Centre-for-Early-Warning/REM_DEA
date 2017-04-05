@@ -265,6 +265,7 @@
 	// generate dynamic queryformTable with building ids and rrvs status columns
 	$(document).ready(function create_table() {
 		var table = $('#queryformTable').DataTable({
+						scrollX: true,
 						scrollY: 240,
 						paging: false,
 						data: {{bdgs|safe}},
@@ -328,7 +329,7 @@
 			ifrm.contentWindow.updateMap($('input[name="gid_field"]').val());
 		} );
 	} );
-					
+	
 	//$(function form_update() {
 	//  // trigger form update on focusout of the gid_field
 	//  $('input[name="gid_field"]').focusout(function() {		
