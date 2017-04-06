@@ -179,7 +179,6 @@ class t_object(db.Model):
     the_geom = db.Column(Geometry(geometry_type='POLYGON', srid=4326))
 
 
-
 class object_attribute(db.Model):
     """
     Holds object_attribute from the asset schema.
