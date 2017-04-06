@@ -11,7 +11,7 @@ Description: The main views file setting up the flask application layout, defini
 import flask
 from webapp import app, db
 from models import Boundaries,Boundary_types,survey,t_object, object_attribute, ve_object, dic_attribute_value, pan_imgs,gps, User, task, tasks_users
-from forms import QueryForm,RrvsForm, RrvsForm_ar,LoginForm
+from forms import QueryForm,LoginForm
 from flask.ext.security import login_required, login_user, logout_user
 import geoalchemy2.functions as func
 from geoalchemy2 import WKTElement
@@ -368,7 +368,7 @@ def queryform():
         ###################################
         #get all entries in the query form which are not empty or none
         query_vals={}
-        nokeys = ['csrf_token','submit','rrvs_status_field','survey_field','lat_min_field','lat_max_field','lon_min_field','lon_max_field']
+        nokeys = ['gid_field','csrf_token','submit','survey_field','lat_min_field','lat_max_field','lon_min_field','lon_max_field']
 
         for key in query_form.data.keys():
             if key not in nokeys:
