@@ -42,10 +42,6 @@
 				{{ rrvs_form.submit }}
 				<!--<p>{{c}} of {{n}} buildings screened</p>-->
 		   </div>
-		   <div class="formLayoutTable">
-			   <!--the actual data table with building ids and rrvs status columns-->
-			   <table id="rrvsFormTable" class="hover"></table>
-		   </div>
 		   <div class="tab">
 			   <input type="radio" id="tab-1" name="tab-group-1" checked>
                <label class="tablabel" for="tab-1">{{gettext('Mat.')}}</label>
@@ -235,6 +231,10 @@
 					</div>
 			   </div> 
 		   </div>
+		</div>
+		<div class="formLayoutTable">
+		    <!--the actual data table with building ids and rrvs status columns-->
+		    <table id="rrvsFormTable" class="hover"></table>
 		</div>
 	</form>
 	

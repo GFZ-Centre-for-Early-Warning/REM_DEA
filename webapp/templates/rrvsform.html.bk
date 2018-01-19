@@ -27,7 +27,7 @@
     </script>
 </head>
 <body>  
-	<form id="queryform" action="{{ url_for('queryform') }}" method=post>
+	<form id="rrvsForm" action="{{ url_for('rrvsform') }}" method=post>
 		{{ rrvs_form.hidden_tag() }}   				
 		<div class="tabs">
 		   <div class="formLayoutGeneral"> 
@@ -36,39 +36,18 @@
 				{{ rrvs_form.gid_field.label }}
 				{{ rrvs_form.gid_field(readonly=True)}}						
                 <br><br><br><br>
+				{{ rrvs_form.rrvs_status_field.label }}
+				{{ rrvs_form.rrvs_status_field }}								
+				<br>
 				{{ rrvs_form.submit }}
 				<!--<p>{{c}} of {{n}} buildings screened</p>-->
 		   </div>
-		   <div class="tab">
-			   <input type="radio" id="tab-0" name="tab-group-1" checked>
-               <label class="tablabel" for="tab-0">{{gettext('Basic')}}</label>
-			   <div class="content">
-					<div class="formLayout">
-						{{ rrvs_form.survey_field.label }}
-						{{ rrvs_form.survey_field }}
-				        <br>
-                        <p align="left"> Query within spatial extent as defined below or click on a polygon in the map (overrides extent below)</p>
-                        {{ rrvs_form.lat_min_field.label }}
-						{{ rrvs_form.lat_min_field }}
-				        <br>
-						{{ rrvs_form.lat_max_field.label }}
-						{{ rrvs_form.lat_max_field }}
-				        <br>
-						{{ rrvs_form.lon_min_field.label }}
-						{{ rrvs_form.lon_min_field }}
-				        <br>
-						{{ rrvs_form.lon_max_field.label }}
-						{{ rrvs_form.lon_max_field }}
-				        <br>
-				        {{ rrvs_form.rrvs_status_field.label }}
-				        {{ rrvs_form.rrvs_status_field }}								
-				<br>
-					</div>
-					
-			   </div> 
+		   <div class="formLayoutTable">
+			   <!--the actual data table with building ids and rrvs status columns-->
+			   <table id="rrvsFormTable" class="hover"></table>
 		   </div>
 		   <div class="tab">
-			   <input type="radio" id="tab-1" name="tab-group-1">
+			   <input type="radio" id="tab-1" name="tab-group-1" checked>
                <label class="tablabel" for="tab-1">{{gettext('Mat.')}}</label>
 			   <div class="content">
 					<div class="formLayout">
@@ -203,14 +182,14 @@
 						{{ rrvs_form.roof_shape_field.label }}
 						{{ rrvs_form.roof_shape_field }}
                         <br>
-						{{ rrvs_form.roofcovmat_field.label }}
-						{{ rrvs_form.roofcovmat_field }}
+						{{ rrvs_form.roof_covmat_field.label }}
+						{{ rrvs_form.roof_covmat_field }}
                         <br>
-						{{ rrvs_form.roofsysmat_field.label }}
-						{{ rrvs_form.roofsysmat_field }}
+						{{ rrvs_form.roof_sysmat_field.label }}
+						{{ rrvs_form.roof_sysmat_field }}
                         <br>
-						{{ rrvs_form.roofsystyp_field.label }}
-						{{ rrvs_form.roofsystyp_field }}
+						{{ rrvs_form.roof_systype_field.label }}
+						{{ rrvs_form.roof_systype_field }}
                         <br>
 						{{ rrvs_form.roof_conn_field.label }}
 						{{ rrvs_form.roof_conn_field }}
@@ -257,59 +236,22 @@
 			   </div> 
 		   </div>
 		</div>
-		<div class="formLayoutTable">
-		    <!--the actual data table with building ids and rrvs status columns-->
-		    <table id="queryformTable" class="hover"></table>
-		</div>
 	</form>
 	
 	<script type="text/javascript">
-	// generate dynamic queryformTable with building ids and rrvs status columns
+	// generate dynamic rrvsFormTable with building ids and rrvs status columns
 	$(document).ready(function create_table() {
-		var table = $('#queryformTable').DataTable({
-						scrollX: true,
+		var table = $('#rrvsFormTable').DataTable({
 						scrollY: 240,
 						paging: false,
 						data: {{bdgs|safe}},
 						columns: [
 							{ title: "BuildingID" },
-                            { title: "mat_type" },
-	                        { title: "mat_tech" },
-	                        { title: "mat_prop" },
-	                        { title: "llrs" },
-	                        { title: "llrs_duct" },
-	                        { title: "height" },
-	                        { title: "height_1_val" },
-	                        { title: "height2" },
-	                        { title: "height2_1_val" },
-	                        { title: "yr_built" },
-	                        { title: "year_1_val" },
-	                        { title: "occupy" },
-	                        { title: "occupy_dt" },
-	                        { title: "plan_shape" },
-	                        { title: "position" },
-	                        { title: "str_irreg" },
-	                        { title: "str_irreg_d" },
-	                        { title: "str_irreg_type" },
-	                        { title: "str_irreg_2" },
-	                        { title: "str_irreg_d_2" },
-	                        { title: "str_irreg_type_2" },
-	                        { title: "nonstrcexw" },
-	                        { title: "roof_shape" },
-	                        { title: "roofcovmat" },
-	                        { title: "roofsysmat" },
-	                        { title: "roofsystyp" },
-	                        { title: "roof_conn" },
-	                        { title: "floor_mat" },
-	                        { title: "floor_typ" },
-	                        { title: "floor_conn" },
-	                        { title: "foundn_sys" },
-	                        { title: "vuln" },
 							{ title: "RRVS Status" }
 						]
 					});		
-		// add on click event to queryformTable rows
-		$('#queryformTable tbody').on('click', 'tr', function () {
+		// add on click event to rrvsFormTable rows
+		$('#rrvsFormTable tbody').on('click', 'tr', function () {
 			// change table row style on click to mark it selected
 			if ( $(this).hasClass('selected') ) {
 				$(this).removeClass('selected');
@@ -318,27 +260,85 @@
 				table.$('tr.selected').removeClass('selected');
 				$(this).addClass('selected');
 			}
-			// update queryform
-			// focus in and out of the gid_field needed by queryform.html to trigger the form update function (on focusout)
+			// update rrvsForm
+			// focus in and out of the gid_field needed by rrvsform.html to trigger the form update function (on focusout)
 			var data = table.row( this ).data();
 			$('input[name="gid_field"]').focus();	
 			$('input[name="gid_field"]').val(data[0]);
-			//$('input[name="gid_field"]').focus();	
 			$('#rrvs_status_field').focus();
 			// update map and panoviewer
-			console.log('queryform: ' + $('input[name="gid_field"]').val());
+			console.log('rrvsform: ' + $('input[name="gid_field"]').val());
 			var ifrm = parent.document.getElementById('ifrm2');
 			ifrm.contentWindow.updateMap($('input[name="gid_field"]').val());
 		} );
 	} );
-    // trigger map update on click of the submit button
-    // note: needed to refresh map layer rendering after data was modified by rrvsform
-    // note: a timeout of 1 ms is needed before the refresh
-    $("#submit").click(setTimeout(function() {
-        var ifrm = parent.document.getElementById('ifrm2');
-        ifrm.src = ifrm.src;
-    }), 1);
+					
+	$(function form_update() {
+	  // trigger form update on focusout of the gid_field
+	  $('input[name="gid_field"]').focusout(function() {		
+		$.getJSON($SCRIPT_ROOT + '/_update_rrvsform', {
+		  // send gid_field value to server for database query
+		  gid_val: $('input[name="gid_field"]').val()
+		}, function(data) {
+		  // update form fields with results from server
+		  $('select[name="mat_type_field"]').val(data.mat_type_gid);
+		  $('select[name="mat_tech_field"]').val(data.mat_tech_gid);
+		  $('select[name="mat_prop_field"]').val(data.mat_prop_gid);
+		  $('select[name="llrs_field"]').val(data.llrs_gid);
+		  $('select[name="llrs_duct_field"]').val(data.llrs_duct_gid);
+		  $('select[name="height_field"]').val(data.height_gid);
+		  $('input[name="height_1_val_field"]').val(data.height_1_val);
+		  $('select[name="height2_field"]').val(data.height2_gid);
+		  $('input[name="height2_1_val_field"]').val(data.height2_1_val);
+		  $('select[name="yr_built_field"]').val(data.yr_built_gid);
+		  $('input[name="year_1_val_field"]').val(data.year_1_val);
+		  $('select[name="occupy_field"]').val(data.occupy_gid);
+		  $('select[name="occupy_dt_field"]').val(data.occupy_dt_gid);
+		  $('select[name="plan_shape_field"]').val(data.plan_shape_gid);
+		  $('select[name="position_field"]').val(data.position_gid);
+		  $('select[name="str_irreg_field"]').val(data.str_irreg_gid);
+		  $('select[name="str_irreg_dt_field"]').val(data.str_irreg_dt_gid);
+		  $('select[name="str_irreg_type_field"]').val(data.str_irreg_type_gid);
+		  $('select[name="str_irreg_2_field"]').val(data.str_irreg_2_gid);
+		  $('select[name="str_irreg_dt_2_field"]').val(data.str_irreg_dt_2_gid);
+		  $('select[name="str_irreg_type_2_field"]').val(data.str_irreg_type_2_gid);
+		  $('select[name="nonstrcexw_field"]').val(data.nonstrcexw_gid);
+		  $('select[name="roof_shape_field"]').val(data.roof_shape_gid);
+		  $('select[name="roof_covmat_field"]').val(data.roof_covmat_gid);
+		  $('select[name="roof_sysmat_field"]').val(data.roof_sysmat_gid);
+		  $('select[name="roof_systype_field"]').val(data.roof_systype_gid);
+		  $('select[name="roof_conn_field"]').val(data.roof_conn_gid);
+		  $('select[name="floor_mat_field"]').val(data.floor_mat_gid);
+		  $('select[name="floor_type_field"]').val(data.floor_type_gid);
+		  $('select[name="floor_conn_field"]').val(data.floor_conn_gid);
+		  $('select[name="foundn_sys_field"]').val(data.foundn_sys_gid);
+                  $('#comment_field').val(data.comment_val);
+		  $('select[name="vuln_field"]').val(data.vuln_gid);
+		  //$('input[name="vuln_field"]').val(data.vuln_val);
+		  //$('input[name="comment_field"]').val(data.comment_val);
+		  // update the rrvs_status checkbox
+		  // note: needed to reformat the rrvs_status_val to fit a boolean checkbox field
+		  if(data.rrvs_status_val == "COMPLETED"){
+			  $("#rrvs_status_field").prop('checked', true);
+		  } else{
+			  $("#rrvs_status_field").prop('checked', false);
+		  }
+		});
+		return false;
+	  });
+	});  
 
+	// trigger map update on click of the submit button
+	// note: needed to refresh map layer rendering after data was modified by rrvsform
+	// note: a timeout of 1 ms is needed before the refresh
+	$("#submit").click(setTimeout(function() {
+		var ifrm = parent.document.getElementById('ifrm2');
+		ifrm.src = ifrm.src;
+	  }), 1);
+	$(parent.document.getElementById('ifrm2')).on("load", function () {
+		var ifrm = parent.document.getElementById('ifrm2');
+		ifrm.contentWindow.updateMap($('input[name="gid_field"]').val());
+	});
 	</script>
 </body>
 </html>

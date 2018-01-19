@@ -200,8 +200,8 @@ br
 
 .formLayoutTable
 {
-	float: right;
+	float: left;
     top: 390px;
-	width: 700px;
+	width: 1200px;
 	margin-right: 8px;
 }
