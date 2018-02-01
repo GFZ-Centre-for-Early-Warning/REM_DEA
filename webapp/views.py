@@ -469,3 +469,11 @@ def queryform():
                                  bdgs=bdgs_list,
                                  n=len(flask.session['bdg_gids']),
                                  c=len([x for x in flask.session['screened'] if x==True]))
+
+@app.route('/histogram')
+@login_required
+def histogram():
+    """
+    This will render a template that holds the d3 histogram plot.
+    """
+    return flask.render_template('histogram.htm')

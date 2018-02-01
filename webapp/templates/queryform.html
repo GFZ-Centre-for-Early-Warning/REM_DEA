@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-    <title>RRVS Webtool - Form</title>
+    <title>DEA Webtool - Form</title>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/main.css') }}">
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='datatables/media/css/jquery.dataTables.css') }}">
@@ -265,13 +265,8 @@
 	
 	<script type="text/javascript">
 	// generate dynamic queryformTable with building ids and rrvs status columns
-	$(document).ready(function create_table() {
-		var table = $('#queryformTable').DataTable({
-						scrollX: true,
-						scrollY: 240,
-						paging: false,
-						data: {{bdgs|safe}},
-						columns: [
+    var bdg_data = {{bdgs|safe}};
+    var bdg_columns = [
 							{ title: "BuildingID" },
                             { title: "mat_type" },
 	                        { title: "mat_tech" },
@@ -307,7 +302,21 @@
 	                        { title: "vuln" },
 							{ title: "RRVS Status" }
 						]
+    //update histogram data
+    var ifrm = parent.document.getElementById('ifrm4');
+    //ifrm.src = ifrm.src;
+    ifrm.contentWindow.bdg_columns = bdg_columns;
+    ifrm.contentWindow.bdg_data = bdg_data;
+    ifrm.contentWindow.update_histogram();
+	$(document).ready(function create_table() {
+		var table = $('#queryformTable').DataTable({
+						scrollX: true,
+						scrollY: 240,
+						paging: false,
+						data: bdg_data,
+						columns:bdg_columns 
 					});		
+
 		// add on click event to queryformTable rows
 		$('#queryformTable tbody').on('click', 'tr', function () {
 			// change table row style on click to mark it selected
